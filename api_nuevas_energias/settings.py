@@ -205,3 +205,22 @@ LOGGING = {
         'level': 'INFO',  # Nivel mínimo a registrar. Cambia a 'DEBUG' si necesitas más detalle.
     },
 }
+
+# --- Configuración de Email para Gmail ---
+# ADVERTENCIA DE SEGURIDAD: No guardes tus credenciales en el control de versiones (Git).
+# Rellena estas variables localmente para probar el envío de correos.
+# Para Gmail, DEBES usar una "Contraseña de aplicación" generada desde tu cuenta de Google.
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'maximiliano.guaymas480@gmail.com'  # TU CORREO DE GMAIL AQUÍ (ej: 'tu.correo@gmail.com')
+EMAIL_HOST_PASSWORD = 'akazpckjgnuvangp'  # TU CONTRASEÑA DE APLICACIÓN DE 16 CARACTERES AQUÍ
+
+# El remitente debe ser el mismo que el usuario para que Gmail funcione
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Si las credenciales no están configuradas, usa la consola para no fallar en desarrollo.
+if DEBUG and not EMAIL_HOST_PASSWORD:
+    print("ADVERTENCIA: Credenciales de correo no configuradas. Usando backend de consola.")
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

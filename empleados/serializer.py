@@ -1,8 +1,14 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User, Group
 from django.db import transaction
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.conf import settings
+import logging
 from .models import Empleado, Legajo, Documento, RequisitoDocumento
 from notificaciones.models import Notificacion
+logger = logging.getLogger(__name__)
 
 # SERIALIZERS EMPLEADOS
 
@@ -108,6 +114,34 @@ class EmpleadoSerializer(serializers.ModelSerializer):
                                 Documento.objects.create(id_leg=legajo, id_requisito=requisito, ruta_archivo=file)
                             except (ValueError, RequisitoDocumento.DoesNotExist):
                                 continue # Ignora archivos con formato de clave incorrecto o ID de requisito no válido
+
+                # 6. Enviar correo de bienvenida
+                if empleado.email:
+                    try:
+                        logger.info(f"Intentando enviar correo de bienvenida a: {empleado.email}")
+                        # La URL de login se construye a partir del request
+                        # Asumimos que el frontend está en una URL base y añadimos /login
+                        # Esto es más robusto que depender de `reverse` que apunta a la API.
+                        host = request.get_host()
+                        protocol = 'https' if request.is_secure() else 'http'
+                        # Idealmente, la URL base del frontend debería estar en settings.
+                        # Por ahora, asumimos que el login está en la raíz.
+                        login_url = f"{protocol}://{host.split(':')[0]}/login" # Ajusta esta URL si es necesario
+
+                        asunto = "¡Bienvenido/a a Nuevas Energías! - Tu cuenta ha sido creada"
+                        
+                        # Renderizar el template HTML
+                        cuerpo_mensaje_html = render_to_string('email/bienvenida_empleado.html', {
+                            'empleado_nombre': empleado.nombre,
+                            'username': dni,
+                            'password': dni, # La contraseña es el DNI
+                            'login_url': login_url,
+                        })
+                        
+                        send_mail(asunto, '', settings.DEFAULT_FROM_EMAIL, [empleado.email], html_message=cuerpo_mensaje_html)
+                        logger.info(f"Correo de bienvenida enviado exitosamente a {empleado.email}")
+                    except Exception as e:
+                        logger.error(f"ERROR al enviar correo de bienvenida a {empleado.email}: {e}")
 
                 return empleado
         except Exception as e:
