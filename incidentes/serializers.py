@@ -1,9 +1,15 @@
 from empleados.models import Empleado
 from rest_framework import serializers
 import uuid
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.conf import settings
+import logging
 from notificaciones.models import Notificacion
 from .models import Incidente, IncidenteEmpleado, Descargo, Resolucion
 from empleados.serializer import EmpleadoSerializer
+
+logger = logging.getLogger(__name__)
 
 class IncidenteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -55,6 +61,8 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
         """
         empleados = validated_data.pop('empleado_ids')
         incidente = validated_data.get('id_incidente')
+        fecha_ocurrencia = validated_data.get('fecha_ocurrencia')
+        observaciones = validated_data.get('observaciones')
         grupo_id = uuid.uuid4() # Generamos un único ID para este lote
         
         incidentes_creados = []
@@ -69,12 +77,40 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
             incidentes_creados.append(incidente_empleado)
 
             # 2. Creamos la notificación para el empleado involucrado
+            enlace_incidente = f"/incidentes/detalle/{grupo_id}/"
             mensaje = f"Has sido involucrado en un nuevo incidente: {incidente.tipo_incid}."
             Notificacion.objects.create(
                 id_user=empleado.user,
                 mensaje=mensaje,
-                enlace=f"/incidentes/detalle/{grupo_id}/"
+                enlace=enlace_incidente
             )
+
+            # 3. Enviar correo electrónico de notificación
+            if empleado.email:
+                try:
+                    logger.info(f"Intentando enviar correo de incidente a: {empleado.email}")
+                    request = self.context.get('request')
+                    if request:
+                        host = request.get_host()
+                        protocol = 'https' if request.is_secure() else 'http'
+                        detalle_url = f"{protocol}://{host.split(':')[0]}{enlace_incidente}"
+                    else:
+                        detalle_url = "Por favor, accede al portal para ver los detalles."
+
+                    asunto = f"Notificación de Incidente: {incidente.tipo_incid}"
+
+                    # Renderizar el template HTML
+                    cuerpo_mensaje_html = render_to_string('email/notificacion_incidente.html', {
+                        'empleado_nombre': empleado.nombre,
+                        'incidente_tipo': incidente.tipo_incid,
+                        'fecha_ocurrencia': fecha_ocurrencia.strftime('%d/%m/%Y'),
+                        'observaciones': observaciones,
+                        'detalle_url': detalle_url,
+                    })
+                    send_mail(asunto, '', settings.DEFAULT_FROM_EMAIL, [empleado.email], html_message=cuerpo_mensaje_html)
+                    logger.info(f"Correo de incidente enviado exitosamente a {empleado.email}")
+                except Exception as e:
+                    logger.error(f"ERROR al enviar correo de incidente a {empleado.email}: {e}")
         
         # Devolvemos la primera instancia creada como representación, o podrías devolver una lista.
         return incidentes_creados[0]
