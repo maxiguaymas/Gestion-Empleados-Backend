@@ -20,30 +20,30 @@ logger = logging.getLogger(__name__)
 @permission_classes([AllowAny])
 def login(request):
     client_ip = get_client_ip(request)
-    email = request.data.get('email')
+    username = request.data.get('username')
     password = request.data.get('password')
 
-    if not email or not password:
-        return Response({'error': 'Se requieren email y contraseña.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not username or not password:
+        return Response({'error': 'Se requieren usuario y contraseña.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    logger.info(f"Intento de login para el usuario con email '{email}' desde la IP: {client_ip}")
+    logger.info(f"Intento de login para el usuario '{username}' desde la IP: {client_ip}")
 
     try:
-        user = User.objects.get(email=email)
+        user = User.objects.get(username=username)
     except User.DoesNotExist:
-        logger.warning(f"Login fallido: El email '{email}' no existe. IP: {client_ip}")
-        return Response({'error': 'Email o contraseña incorrectos.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.warning(f"Login fallido: El usuario '{username}' no existe. IP: {client_ip}")
+        return Response({'error': 'Usuario o contraseña incorrectos.'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not user.check_password(password):
-        logger.warning(f"Login fallido: Contraseña incorrecta para el usuario con email '{email}'. IP: {client_ip}")
-        return Response({'error': 'Email o contraseña incorrectos.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.warning(f"Login fallido: Contraseña incorrecta para el usuario '{username}'. IP: {client_ip}")
+        return Response({'error': 'Usuario o contraseña incorrectos.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Eliminar token existente y crear uno nuevo para reiniciar la expiración.
     Token.objects.filter(user=user).delete()
     token = Token.objects.create(user=user)
 
     serializer = UserSerializer(instance=user)
-    logger.info(f"Login exitoso para el usuario '{user.username}' (email: {email}). IP: {client_ip}")
+    logger.info(f"Login exitoso para el usuario '{user.username}'. IP: {client_ip}")
     return Response({'token': token.key, 'user': serializer.data}, status=status.HTTP_200_OK)
 
 @extend_schema(tags=['Usuarios'])
