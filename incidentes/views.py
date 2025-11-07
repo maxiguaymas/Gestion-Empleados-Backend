@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
 from .models import Incidente, IncidenteEmpleado, Descargo, Resolucion
 from .serializers import IncidenteSerializer, IncidenteEmpleadoSerializer, DescargoSerializer, ResolucionSerializer, GrupoIncidenteDetalleSerializer
@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
 from empleados.mixins import AdminWriteAccessMixin
 from empleados.models import Empleado
+from rest_framework.views import APIView
 
 @extend_schema(tags=['Incidentes'])
 class IncidenteViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
@@ -122,3 +123,19 @@ class GrupoIncidenteViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = self.get_serializer(data)
         return Response(serializer.data)
+
+@extend_schema(tags=['Incidentes'])
+class MisIncidentesView(generics.ListAPIView):
+    """
+    Devuelve los incidentes del empleado relacionado al usuario que hace la peticion.
+    """
+    serializer_class = IncidenteEmpleadoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            empleado = Empleado.objects.get(user=user)
+            return IncidenteEmpleado.objects.filter(id_empl=empleado)
+        except Empleado.DoesNotExist:
+            return IncidenteEmpleado.objects.none()

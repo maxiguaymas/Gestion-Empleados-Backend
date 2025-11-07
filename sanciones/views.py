@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, generics, status
 from rest_framework.permissions import IsAuthenticated
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
@@ -10,6 +10,7 @@ from drf_spectacular.utils import extend_schema
 from notificaciones.models import Notificacion
 from empleados.mixins import AdminWriteAccessMixin
 from empleados.models import Empleado
+from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
 
@@ -78,3 +79,31 @@ class SancionEmpleadoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
                 logger.info(f"Correo de sanción enviado exitosamente a {empleado_sancionado.email}")
             except Exception as e:
                 logger.error(f"ERROR al enviar correo de sanción a {empleado_sancionado.email}: {e}")
+
+@extend_schema(tags=['Sanciones'])
+class MisSancionesView(generics.ListAPIView):
+    """
+    Devuelve las sanciones del empleado relacionado al usuario que hace la petición.
+    """
+    serializer_class = SancionEmpleadoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Filtra y devuelve solo las sanciones del empleado que realiza la solicitud.
+        """
+        user = self.request.user
+        try:
+            # Buscamos el empleado asociado al usuario autenticado
+            empleado = Empleado.objects.get(user=user)
+            return SancionEmpleado.objects.filter(id_empl=empleado)
+        except Empleado.DoesNotExist:
+            # Si el usuario no tiene un perfil de empleado, no se devuelven sanciones.
+            return SancionEmpleado.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        if not queryset.exists():
+            return Response({"detail": "No se encontraron sanciones para tu usuario."}, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

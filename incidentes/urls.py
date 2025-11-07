@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import IncidenteViewSet, IncidenteEmpleadoViewSet, DescargoViewSet, ResolucionViewSet, GrupoIncidenteViewSet
+from .views import IncidenteViewSet, IncidenteEmpleadoViewSet, DescargoViewSet, ResolucionViewSet, GrupoIncidenteViewSet, MisIncidentesView
 
 # Se crea un router para registrar los ViewSets
 router = DefaultRouter()
@@ -14,4 +14,5 @@ router.register(r'resoluciones', ResolucionViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('mis-incidentes/', MisIncidentesView.as_view(), name='mis-incidentes'),
 ]

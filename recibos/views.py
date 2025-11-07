@@ -1,10 +1,11 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
 import logging
 from .models import Recibo_Sueldos
+from rest_framework.response import Response
 from .serializers import ReciboSueldosSerializer
 from drf_spectacular.utils import extend_schema
 from notificaciones.models import Notificacion
@@ -12,6 +13,7 @@ from empleados.mixins import AdminWriteAccessMixin
 from empleados.models import Empleado
 
 logger = logging.getLogger(__name__)
+from rest_framework.generics import ListAPIView
 
 @extend_schema(tags=['Recibos'])
 class ReciboSueldosViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
@@ -89,3 +91,32 @@ class ReciboSueldosViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
                 logger.info(f"Correo de recibo enviado exitosamente a {empleado.email}")
             except Exception as e:
                 logger.error(f"ERROR al enviar correo de recibo a {empleado.email}: {e}")
+
+@extend_schema(tags=['Recibos'])
+class MisRecibosView(ListAPIView):
+    """
+    Devuelve los recibos de sueldo del empleado relacionado al usuario que hace la petición.
+    """
+    serializer_class = ReciboSueldosSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Este método filtra y devuelve solo los recibos de sueldo
+        del empleado que está realizando la solicitud.
+        """
+        user = self.request.user
+        try:
+            # Buscamos el empleado asociado al usuario autenticado
+            empleado = Empleado.objects.get(user=user)
+            return Recibo_Sueldos.objects.filter(id_empl=empleado)
+        except Empleado.DoesNotExist:
+            # Si el usuario no tiene un perfil de empleado, no se devuelven recibos.
+            return Recibo_Sueldos.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        if not queryset.exists():
+            return Response({"detail": "No se encontraron recibos de sueldo para tu usuario."}, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

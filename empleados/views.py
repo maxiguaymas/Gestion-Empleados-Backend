@@ -10,6 +10,7 @@ from .serializer import EmpleadoSerializer, LegajoSerializer, DocumentoSerialize
 from rest_framework.permissions import IsAuthenticated
 from .mixins import AdminWriteAccessMixin
 from .utils import get_client_ip
+from django.utils import timezone
 
 ##08329a51c848547c612642a5808e919f1513cd55031118e6685790909e946a57
 
@@ -36,6 +37,25 @@ class EmpleadoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
         logger.info(f"Intento de creación de empleado desde la IP: {client_ip}")
         # La lógica de permisos ya está en el mixin, así que solo llamamos a super()
         return super().create(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        empleado = self.get_object()
+        empleado.estado = 'Inactivo'
+        empleado.fecha_egreso = timezone.now().date()
+        empleado.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'], url_path='perfil')
+    def perfil(self, request):
+        """
+        Devuelve el perfil del empleado correspondiente al usuario autenticado.
+        """
+        try:
+            empleado = Empleado.objects.get(user=request.user)
+            serializer = self.get_serializer(empleado)
+            return Response(serializer.data)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'No se encontró un empleado para este usuario.'}, status=status.HTTP_404_NOT_FOUND)
 
 @extend_schema(tags=['Empleados'])
 class LegajoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):

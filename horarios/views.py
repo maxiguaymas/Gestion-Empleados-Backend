@@ -11,6 +11,8 @@ from drf_spectacular.utils import extend_schema
 from notificaciones.models import Notificacion
 from empleados.mixins import AdminWriteAccessMixin
 from .filters import AsignacionHorarioFilter
+from rest_framework.generics import ListAPIView
+from empleados.models import Empleado
 
 logger = logging.getLogger(__name__)
 
@@ -125,3 +127,45 @@ class AsignacionHorarioViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
         response_serializer = self.get_serializer(asignaciones_creadas, many=True)
         headers = self.get_success_headers(serializer.data)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+@extend_schema(tags=['Horarios'])
+class MisHorariosView(ListAPIView):
+    """
+    Vista para que un empleado vea sus horarios asignados.
+    Devuelve una lista de los horarios activos asignados al empleado
+    que realiza la solicitud.
+    """
+    serializer_class = HorarioSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Este método devuelve la lista de horarios asignados
+        al empleado autenticado.
+        """
+        try:
+            # 1. Obtener el empleado vinculado al usuario autenticado
+            empleado = self.request.user.empleado
+        except Empleado.DoesNotExist:
+            # Si no hay un perfil de empleado, no hay horarios que mostrar
+            return Horarios.objects.none()
+
+        # 2. Filtrar las asignaciones activas para ese empleado
+        horarios_ids = AsignacionHorario.objects.filter(
+            id_empl=empleado, 
+            estado=True
+        ).values_list('id_horario', flat=True)
+
+        # 3. Devolver los objetos Horario correspondientes
+        return Horarios.objects.filter(id__in=horarios_ids)
+
+    def list(self, request, *args, **kwargs):
+        """
+        Personaliza la respuesta para cuando no se encuentran horarios.
+        """
+        queryset = self.get_queryset()
+        if not queryset.exists():
+            return Response({"detail": "No tienes horarios asignados."}, status=status.HTTP_200_OK)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

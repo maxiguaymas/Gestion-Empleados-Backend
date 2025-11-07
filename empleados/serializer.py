@@ -65,7 +65,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
         2. Asignar el usuario al grupo especificado.
         3. Crear el Empleado y asociarlo al nuevo usuario.
         4. Crear el Legajo asociado al nuevo empleado.
-        5. Guardar los documentos adjuntos.
+        5. Guardar los documentos adjuntos y crear los faltantes.
         Todo dentro de una transacción para asegurar la integridad de los datos.
         """
         request = self.context.get('request')
@@ -104,16 +104,34 @@ class EmpleadoSerializer(serializers.ModelSerializer):
                 new_nro_leg = (last_legajo.nro_leg + 1) if last_legajo else 1
                 legajo = Legajo.objects.create(id_empl=empleado, estado_leg='Pendiente', nro_leg=new_nro_leg)
 
-                # 5. Guardar los documentos adjuntos
+                # 5. Guardar los documentos adjuntos y crear los faltantes
+                from django.core.files.base import ContentFile
+                requisitos = RequisitoDocumento.objects.filter(estado_doc=True)
+                uploaded_docs = {}
                 if request and hasattr(request, 'FILES'):
                     for key, file in request.FILES.items():
                         if key.startswith('documento_'):
                             try:
                                 requisito_id = int(key.split('_')[1])
-                                requisito = RequisitoDocumento.objects.get(pk=requisito_id)
-                                Documento.objects.create(id_leg=legajo, id_requisito=requisito, ruta_archivo=file)
-                            except (ValueError, RequisitoDocumento.DoesNotExist):
-                                continue # Ignora archivos con formato de clave incorrecto o ID de requisito no válido
+                                uploaded_docs[requisito_id] = file
+                            except (ValueError, IndexError):
+                                continue
+
+                for requisito in requisitos:
+                    file = uploaded_docs.get(requisito.id)
+                    if file:
+                        Documento.objects.create(
+                            id_leg=legajo,
+                            id_requisito=requisito,
+                            ruta_archivo=file
+                        )
+                    else:
+                        empty_file = ContentFile(b"", name=f'vacio_{requisito.id}.txt')
+                        Documento.objects.create(
+                            id_leg=legajo,
+                            id_requisito=requisito,
+                            ruta_archivo=empty_file
+                        )
 
                 # 6. Enviar correo de bienvenida
                 if empleado.email:
