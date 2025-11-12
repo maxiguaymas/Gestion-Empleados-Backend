@@ -30,18 +30,27 @@ class LegajoSerializer(serializers.ModelSerializer):
         fields = ['id', 'estado_leg', 'fecha_creacion_leg', 'nro_leg', 'fecha_modificacion_leg', 'documento_set']
 
 class EmpleadoSerializer(serializers.ModelSerializer):
-    grupo = serializers.CharField(write_only=True, required=True)
+    grupo = serializers.SerializerMethodField()
+    grupo_input = serializers.CharField(write_only=True, required=True, source='grupo')
     ruta_foto = serializers.ImageField(required=False, allow_null=True)
     legajo = LegajoSerializer(read_only=True)
 
     class Meta:
         model = Empleado
         fields = [
-            'id', 'nombre', 'apellido', 'dni', 'telefono', 'email', 'genero', 
-            'estado_civil', 'fecha_nacimiento', 'estado', 'ruta_foto', 
-            'fecha_ingreso', 'fecha_egreso', 'legajo', 'grupo'
+            'id', 'nombre', 'apellido', 'dni', 'telefono', 'email', 'genero', 'estado_civil', 
+            'fecha_nacimiento', 'estado', 'ruta_foto', 'fecha_ingreso', 'fecha_egreso', 
+            'legajo', 'grupo', 'grupo_input'
         ]
         read_only_fields = ('legajo',)
+
+    def get_grupo(self, obj):
+        """
+        Devuelve el nombre del primer grupo al que pertenece el usuario asociado al empleado.
+        """
+        if hasattr(obj, 'user') and obj.user.groups.exists():
+            return obj.user.groups.first().name
+        return None
 
     def validate(self, data):
         """

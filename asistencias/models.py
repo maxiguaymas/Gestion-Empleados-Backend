@@ -1,8 +1,8 @@
-from datetime import timezone
+from django.utils import timezone
+from datetime import datetime
 import json
 from django.db import models
 from empleados.models import Empleado
-from horarios.models import AsignacionHorario
 
 class Rostro(models.Model):
     id_empl = models.OneToOneField(Empleado, on_delete=models.CASCADE, primary_key=True)
@@ -27,6 +27,8 @@ class Asistencia(models.Model):
         """
         Calcula los minutos de retraso basados en el horario asignado al empleado.
         """
+        # Importación local para evitar dependencia circular
+        from horarios.models import AsignacionHorario
         asignacion = AsignacionHorario.objects.filter(
             id_empl=self.id_empl,
             estado=True,
@@ -38,7 +40,7 @@ class Asistencia(models.Model):
             hora_entrada_esperada = horario.hora_entrada
             
             fecha_asistencia = self.fecha_hora.date()
-            hora_entrada_dt = timezone.make_aware(timezone.datetime.combine(fecha_asistencia, hora_entrada_esperada))
+            hora_entrada_dt = timezone.make_aware(datetime.combine(fecha_asistencia, hora_entrada_esperada))
             
             if self.fecha_hora > hora_entrada_dt:
                 retraso = self.fecha_hora - hora_entrada_dt
