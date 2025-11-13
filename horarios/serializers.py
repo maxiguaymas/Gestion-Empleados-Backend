@@ -1,15 +1,24 @@
 from rest_framework import serializers
 from .models import Horarios, AsignacionHorario
-from empleados.serializer import EmpleadoSerializer
+from empleados.serializer import EmpleadoSerializer, EmpleadoBasicoSerializer
 from empleados.models import Empleado
 
 class HorarioSerializer(serializers.ModelSerializer):
     """
     Serializador para el modelo de Horarios (turnos).
+    Incluye una lista de los empleados asignados actualmente a este horario.
     """
+    empleados_asignados = serializers.SerializerMethodField()
+
     class Meta:
         model = Horarios
         fields = '__all__'
+
+    def get_empleados_asignados(self, obj):
+        # obj es la instancia de Horarios
+        asignaciones_activas = obj.asignaciones.filter(estado=True)
+        empleados = [asignacion.id_empl for asignacion in asignaciones_activas]
+        return EmpleadoBasicoSerializer(empleados, many=True).data
 
 class AsignacionHorarioDetalleSerializer(serializers.Serializer):
     """
@@ -18,6 +27,26 @@ class AsignacionHorarioDetalleSerializer(serializers.Serializer):
     """
     horario = HorarioSerializer()
     empleados_asignados = EmpleadoSerializer(many=True)
+
+class HorarioBasicoSerializer(serializers.ModelSerializer):
+    """
+    Serializador simple para el modelo Horarios, sin campos anidados.
+    """
+    class Meta:
+        model = Horarios
+        fields = '__all__'
+
+class AsignacionHorarioListSerializer(serializers.ModelSerializer):
+    """
+    Serializador para listar las asignaciones de horario.
+    Muestra el detalle del horario (turno) y los datos básicos del empleado.
+    """
+    id_horario = HorarioBasicoSerializer(read_only=True)
+    id_empl = EmpleadoBasicoSerializer(read_only=True)
+
+    class Meta:
+        model = AsignacionHorario
+        fields = ['id', 'id_horario', 'id_empl', 'fecha_asignacion', 'estado']
 
 
 class AsignacionHorarioSerializer(serializers.ModelSerializer):

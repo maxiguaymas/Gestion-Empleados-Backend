@@ -11,6 +11,7 @@ from drf_spectacular.utils import extend_schema
 from notificaciones.models import Notificacion
 from empleados.mixins import AdminWriteAccessMixin
 from empleados.models import Empleado
+from rest_framework.permissions import BasePermission
 
 logger = logging.getLogger(__name__)
 from rest_framework.generics import ListAPIView
@@ -118,5 +119,43 @@ class MisRecibosView(ListAPIView):
         queryset = self.get_queryset()
         if not queryset.exists():
             return Response({"detail": "No se encontraron recibos de sueldo para tu usuario."}, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+class IsAdminOrConsultor(BasePermission):
+    """
+    Permiso personalizado para permitir el acceso solo a Administradores o Consultores.
+    """
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.is_superuser or 
+            request.user.groups.filter(name__in=['Administrador', 'Consultor']).exists()
+        )
+
+@extend_schema(tags=['Recibos'])
+class RecibosPorDNIView(ListAPIView):
+    """
+    Devuelve los recibos de sueldo de un empleado específico buscado por su DNI.
+    Accesible solo para Administradores y Consultores.
+    """
+    serializer_class = ReciboSueldosSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrConsultor]
+
+    def get_queryset(self):
+        """
+        Filtra los recibos de sueldo basados en el DNI proporcionado en la URL.
+        """
+        dni = self.kwargs.get('dni')
+        try:
+            empleado = Empleado.objects.get(dni=dni)
+            return Recibo_Sueldos.objects.filter(id_empl=empleado).order_by('-fecha_emision')
+        except Empleado.DoesNotExist:
+            return Recibo_Sueldos.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        if not queryset.exists():
+            return Response({"detail": f"No se encontraron recibos para el empleado con DNI {self.kwargs.get('dni')}."}, status=status.HTTP_404_NOT_FOUND)
+        
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)

@@ -12,6 +12,15 @@ logger = logging.getLogger(__name__)
 
 # SERIALIZERS EMPLEADOS
 
+class EmpleadoBasicoSerializer(serializers.ModelSerializer):
+    """
+    Serializador simplificado para Empleado.
+    Muestra solo los campos principales, sin relaciones anidadas.
+    """
+    class Meta:
+        model = Empleado
+        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado']
+
 class DocumentoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Documento
