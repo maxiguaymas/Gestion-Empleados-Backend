@@ -6,7 +6,7 @@ import logging
 from .models import Empleado, Legajo, Documento, RequisitoDocumento
 from drf_spectacular.utils import extend_schema
 # from notificaciones.models import Notificacion
-from .serializer import EmpleadoSerializer, LegajoSerializer, DocumentoSerializer, RequisitoDocumentoSerializer
+from .serializer import EmpleadoSerializer, LegajoSerializer, DocumentoSerializer, RequisitoDocumentoSerializer, EmpleadoBasicoSerializer
 from rest_framework.permissions import IsAuthenticated
 from .mixins import AdminWriteAccessMixin
 from .utils import get_client_ip
@@ -56,6 +56,17 @@ class EmpleadoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
             return Response(serializer.data)
         except Empleado.DoesNotExist:
             return Response({'error': 'No se encontró un empleado para este usuario.'}, status=status.HTTP_404_NOT_FOUND)
+
+@extend_schema(tags=['Empleados'])
+class EmpleadoBasicoViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet de solo lectura para obtener una lista básica de empleados activos.
+    Ideal para listas desplegables o búsquedas rápidas en el frontend.
+    """
+    queryset = Empleado.objects.filter(estado='Activo')
+    serializer_class = EmpleadoBasicoSerializer
+    permission_classes = [IsAuthenticated]
+
 
 @extend_schema(tags=['Empleados'])
 class LegajoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):

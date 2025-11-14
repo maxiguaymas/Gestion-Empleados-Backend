@@ -31,12 +31,14 @@ class IncidenteEmpleado(models.Model):
         ('CORREGIDO', 'Corregido'),
     ]
     grupo_incidente = models.UUIDField(default=uuid.uuid4, editable=False, help_text="Identificador único para agrupar incidentes creados en la misma operación.")
+    grupo_anterior = models.UUIDField(null=True, blank=True, help_text="UUID del grupo de incidente que este nuevo grupo corrige.")
 
     id_incidente = models.ForeignKey(Incidente, on_delete=models.CASCADE)
     id_empl = models.ForeignKey(Empleado, on_delete=models.CASCADE)
     fecha_ocurrencia = models.DateField()
-    observaciones = models.CharField(max_length=255)
-    responsable_registro = models.CharField(max_length=255)
+    descripcion = models.TextField(default='')
+    observaciones = models.TextField(blank=True, null=True)
+    responsable_registro = models.ForeignKey(Empleado, on_delete=models.SET_NULL, null=True, blank=True, related_name='incidentes_registrados')
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='ABIERTO')
 
     class Meta:

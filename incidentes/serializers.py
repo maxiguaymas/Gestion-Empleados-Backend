@@ -9,12 +9,25 @@ from notificaciones.models import Notificacion
 from .models import Incidente, IncidenteEmpleado, Descargo, Resolucion
 from empleados.serializer import EmpleadoSerializer
 
+class EmpleadoBasicoSerializer(serializers.ModelSerializer):
+    """Serializer básico para mostrar solo información esencial del empleado."""
+    class Meta:
+        model = Empleado
+        fields = ['id', 'nombre', 'apellido', 'dni']
+
 logger = logging.getLogger(__name__)
 
 class IncidenteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Incidente
         fields = '__all__'
+
+class DescargoGrupoSerializer(serializers.ModelSerializer):
+    """Serializer para descargos dentro de un grupo, con datos básicos del autor."""
+    autor = EmpleadoBasicoSerializer(read_only=True)
+    class Meta:
+        model = Descargo
+        fields = ['id', 'autor', 'fecha_descargo', 'contenido_descargo']
 
 class DescargoSerializer(serializers.ModelSerializer):
     autor = EmpleadoSerializer(read_only=True)
@@ -27,6 +40,7 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
     # Usamos representaciones de solo lectura para las relaciones anidadas
     id_incidente = IncidenteSerializer(read_only=True)
     id_empl = EmpleadoSerializer(read_only=True)
+    responsable_registro = EmpleadoBasicoSerializer(read_only=True)
     descargos = DescargoSerializer(many=True, read_only=True)
 
     # Campos de solo escritura para la creación y actualización
@@ -40,8 +54,8 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
     class Meta:
         model = IncidenteEmpleado
         fields = [
-            'id', 'grupo_incidente', 'id_incidente', 'id_empl', 'fecha_ocurrencia', 
-            'observaciones', 'responsable_registro', 'estado', 'resolucion',
+            'id', 'grupo_incidente', 'id_incidente', 'id_empl', 'fecha_ocurrencia',
+            'descripcion', 'observaciones', 'responsable_registro', 'estado', 'resolucion',
             'descargos', 'resolucion', 'incidente_id', 'empleado_ids'
         ]
         read_only_fields = ('estado',)
@@ -59,12 +73,29 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
         """
         Crea múltiples instancias de IncidenteEmpleado, una para cada empleado_id.
         """
+        request = self.context.get('request')
+        empleado_responsable = None
+        if request and hasattr(request, "user"):
+            try:
+                # Buscamos el empleado que está registrando el incidente
+                empleado_responsable = Empleado.objects.get(user=request.user)
+            except Empleado.DoesNotExist:
+                # Si el usuario no tiene un perfil de empleado (ej. superadmin),
+                # el responsable quedará como null, según lo permite el modelo.
+                pass
+
         empleados = validated_data.pop('empleado_ids')
         incidente = validated_data.get('id_incidente')
         fecha_ocurrencia = validated_data.get('fecha_ocurrencia')
+        descripcion = validated_data.get('descripcion')
         observaciones = validated_data.get('observaciones')
         grupo_id = uuid.uuid4() # Generamos un único ID para este lote
         
+        # Eliminamos la clave 'id_incidente' de validated_data para evitar el TypeError
+        validated_data.pop('id_incidente', None)
+
+        validated_data['responsable_registro'] = empleado_responsable
+
         incidentes_creados = []
         for empleado in empleados:
             # 1. Creamos la instancia de IncidenteEmpleado
@@ -104,7 +135,7 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
                         'empleado_nombre': empleado.nombre,
                         'incidente_tipo': incidente.tipo_incid,
                         'fecha_ocurrencia': fecha_ocurrencia.strftime('%d/%m/%Y'),
-                        'observaciones': observaciones,
+                        'descripcion': descripcion,
                         'detalle_url': detalle_url,
                     })
                     send_mail(asunto, '', settings.DEFAULT_FROM_EMAIL, [empleado.email], html_message=cuerpo_mensaje_html)
@@ -167,7 +198,30 @@ class GrupoIncidenteDetalleSerializer(serializers.Serializer):
     Muestra la información del incidente, todos los empleados involucrados
     y todos los descargos asociados al grupo.
     """
+    grupo_anterior = serializers.UUIDField(required=False, allow_null=True)
+    grupo_incidente = serializers.UUIDField()
     incidente = IncidenteSerializer()
-    empleados_involucrados = EmpleadoSerializer(many=True)
-    descargos_del_grupo = DescargoSerializer(many=True)
-    resolucion = ResolucionSerializer()
+    empleados_involucrados = EmpleadoBasicoSerializer(many=True)
+    fecha_ocurrencia = serializers.DateField()
+    descripcion = serializers.CharField()
+    observaciones = serializers.CharField(allow_blank=True, allow_null=True)
+    responsable_registro = EmpleadoBasicoSerializer()
+    estado = serializers.CharField()
+    descargos_del_grupo = DescargoGrupoSerializer(many=True)
+    resolucion = ResolucionSerializer(required=False)
+
+class GrupoIncidenteListSerializer(serializers.Serializer):
+    """
+    Serializer para la vista de lista de incidentes agrupados.
+    Muestra información resumida de cada grupo.
+    """
+    grupo_anterior = serializers.UUIDField(required=False, allow_null=True)
+    grupo_incidente = serializers.UUIDField()
+    incidente = IncidenteSerializer()
+    empleados_involucrados = EmpleadoBasicoSerializer(many=True)
+    fecha_ocurrencia = serializers.DateField()
+    descripcion = serializers.CharField()
+    observaciones = serializers.CharField(allow_blank=True, allow_null=True)
+    responsable_registro = EmpleadoBasicoSerializer()
+    estado = serializers.CharField()
+    descargos_del_grupo = DescargoGrupoSerializer(many=True)
