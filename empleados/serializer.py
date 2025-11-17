@@ -22,9 +22,20 @@ class EmpleadoBasicoSerializer(serializers.ModelSerializer):
         fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado']
 
 class DocumentoSerializer(serializers.ModelSerializer):
+    ruta_archivo = serializers.SerializerMethodField()
+
     class Meta:
         model = Documento
-        exclude = ('id_leg',)
+        fields = ['id', 'id_requisito', 'ruta_archivo', 'fecha_hora_subida', 'descripcion_doc', 'estado_doc']
+
+    def get_ruta_archivo(self, obj):
+        request = self.context.get('request')
+        if obj.ruta_archivo and hasattr(obj.ruta_archivo, 'url'):
+            # Si el nombre del archivo es como 'vacio_*.txt', no construyas una URL completa
+            if obj.ruta_archivo.name.startswith('vacio_') and obj.ruta_archivo.name.endswith('.txt'):
+                return None
+            return request.build_absolute_uri(obj.ruta_archivo.url)
+        return None
 
 class RequisitoDocumentoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,7 +52,7 @@ class LegajoSerializer(serializers.ModelSerializer):
 class EmpleadoSerializer(serializers.ModelSerializer):
     grupo = serializers.SerializerMethodField()
     grupo_input = serializers.CharField(write_only=True, required=True, source='grupo')
-    ruta_foto = serializers.ImageField(required=False, allow_null=True)
+    ruta_foto = serializers.SerializerMethodField()
     legajo = LegajoSerializer(read_only=True)
 
     class Meta:
@@ -61,13 +72,28 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             return obj.user.groups.first().name
         return None
 
+    def get_ruta_foto(self, obj):
+        request = self.context.get('request')
+        if obj.ruta_foto and hasattr(obj.ruta_foto, 'url'):
+            return request.build_absolute_uri(obj.ruta_foto.url)
+        return None
+
     def validate(self, data):
         """
-        Validación a nivel de objeto para asegurar que se envíen los documentos obligatorios.
+        Validación a nivel de objeto para asegurar que se envíen los documentos obligatorios en la creación.
         """
-        request = self.context.get('request')
-        if not request or not hasattr(request, 'FILES'):
+        # Solo ejecutar esta validación en la creación (cuando no hay instancia)
+        if self.instance is not None:
             return data
+
+        request = self.context.get('request')
+        # En la creación, los archivos pueden ser opcionales si no hay requisitos obligatorios
+        if not request or not hasattr(request, 'FILES'):
+            # Si no hay requisitos obligatorios, está bien no enviar archivos.
+            if not RequisitoDocumento.objects.filter(obligatorio=True, estado_doc=True).exists():
+                return data
+            # Si hay requisitos obligatorios, pero no se envía ningún archivo, falla.
+            raise serializers.ValidationError("No se proporcionaron archivos de documentos en la creación.")
 
         requisitos_obligatorios = RequisitoDocumento.objects.filter(obligatorio=True, estado_doc=True)
         for requisito in requisitos_obligatorios:
@@ -75,6 +101,60 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             if nombre_campo_archivo not in request.FILES:
                 raise serializers.ValidationError(f"El documento obligatorio '{requisito.nombre_doc}' no fue proporcionado.")
         return data
+
+    def update(self, instance, validated_data):
+        """
+        Sobrescribe el método de actualización para manejar la actualización de
+        los datos del empleado y sus documentos asociados.
+        """
+        request = self.context.get('request')
+        
+        # El campo 'grupo' se maneja por separado. Si se envía 'grupo_input', actualizamos el grupo.
+        if 'grupo' in validated_data:
+            grupo_nombre = validated_data.pop('grupo')
+            try:
+                grupo = Group.objects.get(name=grupo_nombre)
+                instance.user.groups.set([grupo])
+            except Group.DoesNotExist:
+                raise serializers.ValidationError({'grupo': f"El grupo '{grupo_nombre}' no existe."})
+
+        # Actualizar la instancia del empleado con los datos validados
+        # Usamos pop para quitar 'ruta_foto' de validated_data si existe, ya que se maneja por separado.
+        validated_data.pop('ruta_foto', None)
+        instance = super().update(instance, validated_data)
+
+        # Manejar la actualización de la foto de perfil si se envía un nuevo archivo
+        if 'ruta_foto' in request.FILES:
+            instance.ruta_foto = request.FILES['ruta_foto']
+            instance.save(update_fields=['ruta_foto'])
+
+        # Manejar la actualización de documentos del legajo
+        if request and hasattr(request, 'FILES'):
+            legajo = instance.legajo
+            from django.core.files.base import ContentFile
+
+            for key, file in request.FILES.items():
+                if key.startswith('documento_'):
+                    try:
+                        requisito_id = int(key.split('_')[1])
+                        requisito = RequisitoDocumento.objects.get(id=requisito_id)
+                        
+                        # Busca si ya existe un documento para este requisito y legajo
+                        documento, created = Documento.objects.update_or_create(
+                            id_leg=legajo,
+                            id_requisito=requisito,
+                            defaults={'ruta_archivo': file}
+                        )
+                        # Si el documento estaba 'vacío', actualiza su estado o lo que sea necesario
+                        if not created and 'vacio' in documento.ruta_archivo.name:
+                            # Opcional: Lógica adicional si se está reemplazando un placeholder
+                            pass
+
+                    except (ValueError, IndexError, RequisitoDocumento.DoesNotExist):
+                        # Ignora archivos que no coincidan con un requisito válido
+                        continue
+        
+        return instance
 
     def create(self, validated_data):
         """
