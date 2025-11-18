@@ -225,3 +225,15 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 if DEBUG and not EMAIL_HOST_PASSWORD:
     print("ADVERTENCIA: Credenciales de correo no configuradas. Usando backend de consola.")
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# --- CONFIGURACIÓN DE CACHÉ ---
+# Para desarrollo, usamos el backend de caché en memoria (LocMemCache).
+# Es rápido y no requiere configuración externa.
+# Para un entorno de producción, se recomienda cambiar a un backend más robusto
+# como Redis (django-redis) o Memcached (django-pylibmc).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',  # Un nombre único para este caché en memoria
+    }
+}
