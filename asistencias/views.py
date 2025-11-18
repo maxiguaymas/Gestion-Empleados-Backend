@@ -11,11 +11,45 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
 from empleados.models import Empleado
-from empleados.serializer import EmpleadoSerializer
+from empleados.serializer import EmpleadoBasicoSerializer, EmpleadoSerializer
 from .models import Rostro, Asistencia
 from empleados.mixins import AdminWriteAccessMixin
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from .serializers import AsistenciaSerializer, RostroSerializer
+
+@extend_schema(tags=['Asistencias'])
+class EmpleadosSinRostroAPIView(AdminWriteAccessMixin, ListAPIView):
+    """
+    API para obtener una lista de empleados que aún no tienen un rostro registrado.
+    Solo los administradores pueden acceder.
+    """
+    serializer_class = EmpleadoBasicoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Devuelve todos los empleados que no están en la tabla de Rostros.
+        """
+        empleados_con_rostro_ids = Rostro.objects.values_list('id_empl_id', flat=True)
+        return Empleado.objects.exclude(id__in=empleados_con_rostro_ids)
+
+
+@extend_schema(tags=['Asistencias'])
+class EmpleadosConRostroAPIView(AdminWriteAccessMixin, ListAPIView):
+    """
+    API para obtener una lista de empleados que ya tienen un rostro registrado.
+    Ideal para la sección de edición de rostros.
+    Solo los administradores pueden acceder.
+    """
+    serializer_class = EmpleadoBasicoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Devuelve todos los empleados que sí están en la tabla de Rostros.
+        """
+        empleados_con_rostro_ids = Rostro.objects.values_list('id_empl_id', flat=True)
+        return Empleado.objects.filter(id__in=empleados_con_rostro_ids)
 
 
 @extend_schema(tags=['Asistencias'])
