@@ -19,7 +19,7 @@ class EmpleadoBasicoSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Empleado
-        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado']
+        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado', 'fecha_ingreso']
 
 class DocumentoSerializer(serializers.ModelSerializer):
     ruta_archivo = serializers.SerializerMethodField()

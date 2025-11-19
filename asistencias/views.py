@@ -2,7 +2,7 @@ import base64
 import numpy as np
 import cv2
 import face_recognition
-from datetime import date
+from django.utils import timezone
 
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
@@ -197,7 +197,9 @@ class ReconocerRostroAPIView(APIView):
                 empleado_id = empleados_ids[first_match_index]
                 empleado = Empleado.objects.get(id=empleado_id)
 
-                if not Asistencia.objects.filter(id_empl=empleado, fecha_hora__date=date.today()).exists():
+                # Usamos la fecha local para la comprobación, igual que en el resumen.
+                today_local = timezone.localtime(timezone.now()).date()
+                if not Asistencia.objects.filter(id_empl=empleado, fecha_hora__date=today_local).exists():
                     asistencia = Asistencia.objects.create(id_empl=empleado)
                     asistencia.minutos_retraso = asistencia.calcular_retraso()
                     asistencia.save()
@@ -252,3 +254,26 @@ class AsistenciaEmpleadoAPIView(ListAPIView):
         if year: queryset = queryset.filter(fecha_hora__year=year)
         
         return queryset
+
+@extend_schema(tags=['Asistencias'])
+class ResumenAsistenciaDiariaAPIView(AdminWriteAccessMixin, APIView):
+    """
+    Devuelve un resumen de las asistencias del día actual.
+    - `asistencias_hoy`: Número de empleados que marcaron asistencia hoy.
+    - `total_empleados_activos`: Número total de empleados activos.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # Usamos localtime para obtener la fecha correspondiente a la zona horaria del servidor.
+        today = timezone.localtime(timezone.now()).date()
+        
+        # Contar asistencias únicas de empleados para hoy
+        asistencias_hoy = Asistencia.objects.filter(fecha_hora__date=today).values('id_empl').distinct().count()
+        
+        # Contar total de empleados activos
+        total_empleados_activos = Empleado.objects.filter(estado='Activo').count()
+        
+        data = { 'asistencias_hoy': asistencias_hoy, 'total_empleados_activos': total_empleados_activos }
+        
+        return Response(data, status=status.HTTP_200_OK)

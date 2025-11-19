@@ -5,8 +5,9 @@ from .views import (
     RegistrarRostroAPIView,
     ReconocerRostroAPIView,
     AsistenciaEmpleadoAPIView,
-    EmpleadosSinRostroAPIView,
-    EmpleadosConRostroAPIView
+    EmpleadosSinRostroAPIView, 
+    EmpleadosConRostroAPIView,
+    ResumenAsistenciaDiariaAPIView
 )
 
 urlpatterns = [
@@ -34,4 +35,8 @@ urlpatterns = [
     # Endpoint para que un empleado vea sus propias asistencias (más seguro)
     # GET: /api/asistencias/mis-asistencias/
     path('mis-asistencias/', AsistenciaEmpleadoAPIView.as_view(), name='api_mis_asistencias'),
+
+    # Endpoint para obtener un resumen de las asistencias del día
+    # GET: /api/asistencias/resumen-diario/
+    path('resumen-diario/', ResumenAsistenciaDiariaAPIView.as_view(), name='api_resumen_diario'),
 ]

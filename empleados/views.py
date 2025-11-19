@@ -60,10 +60,10 @@ class EmpleadoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
 @extend_schema(tags=['Empleados'])
 class EmpleadoBasicoViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet de solo lectura para obtener una lista básica de empleados activos.
+    ViewSet de solo lectura para obtener una lista básica de empleados.
     Ideal para listas desplegables o búsquedas rápidas en el frontend.
     """
-    queryset = Empleado.objects.filter(estado='Activo')
+    queryset = Empleado.objects.all()
     serializer_class = EmpleadoBasicoSerializer
     permission_classes = [IsAuthenticated]
 
