@@ -63,7 +63,7 @@ class ReciboSueldosViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
         # 2. Creamos la notificación para el empleado.
         empleado = recibo.id_empl
         mensaje = f"Se ha cargado tu recibo de sueldo para el período {recibo.periodo}."
-        enlace_recibos = "/recibos/mis-recibos/"
+        enlace_recibos = "/mis-recibos/"
         Notificacion.objects.create(
             id_user=empleado.user,
             mensaje=mensaje,

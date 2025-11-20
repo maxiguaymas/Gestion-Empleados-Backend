@@ -195,7 +195,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
                 Notificacion.objects.create(
                     id_user=user,
                     mensaje=f"¡Bienvenido/a, {empleado.nombre}! Tu perfil ha sido creado exitosamente.",
-                    enlace="/empleados/perfil/"
+                    enlace="/perfil/"
                 )
                 # 4. Crear el Legajo asociado y generar nro_leg secuencial.
                 last_legajo = Legajo.objects.order_by('-nro_leg').first()
