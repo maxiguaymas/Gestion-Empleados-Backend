@@ -35,6 +35,7 @@ urlpatterns = [
         path('', include('incidentes.urls')),
         path('', include('sanciones.urls')),
         path('', include('asistencias.urls')),
+        path('', include('notificaciones.urls')),
        
         # demas apps...
     ])),

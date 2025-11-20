@@ -155,7 +155,7 @@ class AsignacionHorarioViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
             Notificacion.objects.create(
                 id_user=empleado.user,
                 mensaje=f"Se te ha asignado un nuevo horario: {horario.nombre}.",
-                enlace="/horarios/mis-horarios/"
+                enlace="/mis-horarios/"
             )
 
             # 3. Enviar correo electrónico de notificación
