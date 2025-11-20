@@ -108,7 +108,7 @@ class IncidenteEmpleadoSerializer(serializers.ModelSerializer):
             incidentes_creados.append(incidente_empleado)
 
             # 2. Creamos la notificación para el empleado involucrado
-            enlace_incidente = f"/incidentes/detalle/{grupo_id}/"
+            enlace_incidente = f"/mis-incidentes/{incidente_empleado.id}/"
             mensaje = f"Has sido involucrado en un nuevo incidente: {incidente.tipo_incid}."
             Notificacion.objects.create(
                 id_user=empleado.user,
@@ -183,7 +183,7 @@ class ResolucionSerializer(serializers.ModelSerializer):
             Notificacion.objects.create(
                 id_user=empleado.user,
                 mensaje=mensaje,
-                enlace=f"/incidentes/detalle/{grupo_id}/"
+                enlace=f"/mis-incidentes/{incidente_empleado.id}/"
             )
 
         return resolucion

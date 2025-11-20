@@ -48,7 +48,7 @@ class SancionEmpleadoViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
 
         # 2. Creamos y enviamos la notificación al empleado sancionado.
         empleado_sancionado = sancion_empleado.id_empl
-        enlace_sancion = f"/sanciones/detalle/{sancion_empleado.id}/"
+        enlace_sancion = f"/mis-sanciones/{sancion_empleado.id}/"
         mensaje = f"Se te ha aplicado una nueva sanción: {sancion_empleado.id_sancion.nombre}."
         
         Notificacion.objects.create(
