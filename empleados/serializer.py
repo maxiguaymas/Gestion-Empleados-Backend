@@ -17,9 +17,19 @@ class EmpleadoBasicoSerializer(serializers.ModelSerializer):
     Serializador simplificado para Empleado.
     Muestra solo los campos principales, sin relaciones anidadas.
     """
+    grupo = serializers.SerializerMethodField()
+
     class Meta:
         model = Empleado
-        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado', 'fecha_ingreso']
+        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado', 'fecha_ingreso', 'grupo']
+
+    def get_grupo(self, obj):
+        """
+        Devuelve el nombre del primer grupo al que pertenece el usuario asociado al empleado.
+        """
+        if hasattr(obj, 'user') and obj.user.groups.exists():
+            return obj.user.groups.first().name
+        return None
 
 class DocumentoSerializer(serializers.ModelSerializer):
     ruta_archivo = serializers.SerializerMethodField()
