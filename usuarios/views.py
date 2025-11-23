@@ -57,15 +57,29 @@ def login(request):
     
     # Comprobar si el usuario es un empleado y si necesita cambiar la contraseña.
     must_change_password = False
+    nombre_empleado = None
+    apellido_empleado = None
+    grupo_usuario = None
+
     if hasattr(user, 'empleado'):
+        empleado = user.empleado
         if not user.empleado.password_cambiada:
             must_change_password = True
+        
+        nombre_empleado = empleado.nombre
+        apellido_empleado = empleado.apellido
+
+    if user.groups.exists():
+        grupo_usuario = user.groups.first().name
 
     logger.info(f"Login exitoso para el usuario '{user.username}'. IP: {client_ip}")
     return Response({
         'token': token.key, 
         'user': serializer.data,
-        'must_change_password': must_change_password
+        'must_change_password': must_change_password,
+        'nombre': nombre_empleado,
+        'apellido': apellido_empleado,
+        'grupo': grupo_usuario,
     }, status=status.HTTP_200_OK)
 
 @extend_schema(tags=['Usuarios'])
