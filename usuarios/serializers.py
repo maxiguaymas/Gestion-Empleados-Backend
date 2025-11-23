@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-
+from django.contrib.auth import password_validation
+from rest_framework.exceptions import ValidationError
 
 # SERIALIZERS USUARIOS
 import uuid
@@ -41,3 +42,63 @@ class UserSerializer(serializers.ModelSerializer):
             password=password
         )
         return user
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    new_password2 = serializers.CharField(required=True, write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['new_password2']:
+            raise serializers.ValidationError({'new_password': 'Las nuevas contraseñas no coinciden.'})
+        
+        user = self.context['request'].user
+        new_password = data['new_password']
+
+        # --- Validación de contraseña personalizada ---        
+        # 1. Creamos un validador de similitud que explícitamente ignora el email.
+        custom_similarity_validator = password_validation.UserAttributeSimilarityValidator(
+            user_attributes=('username', 'first_name', 'last_name') # Excluimos 'email'
+        )
+
+        # 2. Creamos la lista de validadores que vamos a usar.
+        validators = [
+            custom_similarity_validator,
+            password_validation.MinimumLengthValidator(),
+            password_validation.CommonPasswordValidator(),
+            password_validation.NumericPasswordValidator(),
+        ]
+
+        # 3. Ejecutamos la validación.
+        try:
+            password_validation.validate_password(new_password, user, password_validators=validators)
+        except ValidationError as e:
+            # Si hay errores de validación, los lanzamos.
+            raise serializers.ValidationError({'new_password': list(e.messages)})
+
+        return data
+
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError('La contraseña antigua no es correcta.')
+        return value
+
+# --- SERIALIZERS OLVIDÉ MI CONTRASEÑA ---
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        if not User.objects.filter(email__iexact=value).exists():
+            # Por seguridad, no revelamos si el email existe o no.
+            # Simplemente no hacemos nada, pero el serializer es válido.
+            # La vista se encargará de no enviar el correo.
+            pass
+        return value
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    new_password2 = serializers.CharField(required=True, write_only=True)

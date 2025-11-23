@@ -167,6 +167,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Puedes ajustar este valor según tus necesidades
 TOKEN_LIFETIME = timedelta(hours=12) # Ejemplo: 12 horas
 
+# --- TIEMPO DE VIDA DEL TOKEN DE RESETEO DE CONTRASEÑA ---
+# Define el tiempo en segundos que un enlace de reseteo de contraseña es válido.
+# 86400 segundos = 24 horas = 1 día.
+PASSWORD_RESET_TIMEOUT = 86400
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 

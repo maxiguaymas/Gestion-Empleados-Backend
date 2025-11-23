@@ -26,6 +26,7 @@ class Empleado(models.Model):
     ruta_foto = models.ImageField(upload_to='empleados/fotos/', blank=True, null=True)
     fecha_ingreso = models.DateField(auto_now_add=True)
     fecha_egreso = models.DateField(blank=True, null=True)
+    password_cambiada = models.BooleanField(default=False)
     
 
 

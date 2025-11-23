@@ -128,6 +128,14 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             except Group.DoesNotExist:
                 raise serializers.ValidationError({'grupo': f"El grupo '{grupo_nombre}' no existe."})
 
+        # Si se recibe un nuevo email, actualizarlo también en el modelo User.
+        if 'email' in validated_data:
+            new_email = validated_data['email']
+            user = instance.user
+            if user.email != new_email:
+                user.email = new_email
+                user.save(update_fields=['email'])
+
         # Actualizar la instancia del empleado con los datos validados
         # Usamos pop para quitar 'ruta_foto' de validated_data si existe, ya que se maneja por separado.
         validated_data.pop('ruta_foto', None)
