@@ -6,17 +6,27 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
 import logging
-from .models import Horarios, AsignacionHorario
+from .models import Horarios, AsignacionHorario, Empleado
 from .serializers import HorarioSerializer, AsignacionHorarioSerializer, AsignacionHorarioDetalleSerializer
 from .serializers import AsignacionHorarioListSerializer
 from notificaciones.models import Notificacion
 from empleados.mixins import AdminWriteAccessMixin
 from .filters import AsignacionHorarioFilter
 from rest_framework.generics import ListAPIView
-from empleados.models import Empleado
+from rest_framework.permissions import BasePermission
+from django.shortcuts import get_object_or_404
 
 logger = logging.getLogger(__name__)
 from drf_spectacular.utils import extend_schema
+
+class IsAdminGroup(BasePermission):
+    """
+    Permiso personalizado que verifica si el usuario pertenece al grupo 'Administrador'.
+    """
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.groups.filter(name='Administrador').exists() or request.user.is_superuser
+        )
 
 @extend_schema(tags=['Horarios'])
 class HorarioViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet): # Renombrado de HorariosViewSet a HorarioViewSet para consistencia
@@ -238,6 +248,32 @@ class MisHorariosView(ListAPIView):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+@extend_schema(tags=['Horarios'])
+class HorariosPorEmpleadoView(ListAPIView):
+    """
+    Devuelve los horarios activos de un empleado específico según su ID.
+    Requiere permisos de administrador.
+    """
+    serializer_class = HorarioSerializer
+    permission_classes = [IsAuthenticated, IsAdminGroup]
+
+    def get_queryset(self):
+        """
+        Filtra y devuelve los horarios activos para el empleado especificado en la URL.
+        """
+        empleado_id = self.kwargs.get('empleado_id')
+        if not empleado_id:
+            return Horarios.objects.none()
+
+        # 1. Obtener el empleado por su ID
+        empleado = get_object_or_404(Empleado, id=empleado_id)
+
+        # 2. Filtrar las asignaciones activas para ese empleado
+        horarios_ids = AsignacionHorario.objects.filter(id_empl=empleado, estado=True).values_list('id_horario_id', flat=True)
+
+        # 3. Devolver los objetos Horario correspondientes
+        return Horarios.objects.filter(id__in=horarios_ids)
 
 @extend_schema(tags=['Horarios'])
 class AsignacionHorarioListView(ListAPIView):

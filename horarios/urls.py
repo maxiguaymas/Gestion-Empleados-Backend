@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import HorarioViewSet, AsignacionHorarioViewSet, MisHorariosView, AsignacionHorarioListView
+from .views import HorarioViewSet, AsignacionHorarioViewSet, MisHorariosView, AsignacionHorarioListView, HorariosPorEmpleadoView
 
 router = DefaultRouter()
 router.register(r'horarios', HorarioViewSet) # Registra el ViewSet para los turnos
@@ -9,5 +9,6 @@ router.register(r'asignacion-horario', AsignacionHorarioViewSet) # Registra el V
 urlpatterns = [
     path('historial-asignaciones/', AsignacionHorarioListView.as_view(), name='lista-asignaciones-horario'),
     path('mis-horarios/', MisHorariosView.as_view(), name='mis-horarios'),
+    path('horarios/por-empleado/<int:empleado_id>/', HorariosPorEmpleadoView.as_view(), name='horarios-por-empleado'),
     path('', include(router.urls)),
 ]
