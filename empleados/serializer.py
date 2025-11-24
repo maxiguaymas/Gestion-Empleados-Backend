@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from django.contrib.auth.models import User, Group
 from django.db import transaction
 from django.core.mail import send_mail
@@ -73,6 +74,26 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'legajo', 'grupo', 'grupo_input'
         ]
         read_only_fields = ('legajo',)
+        extra_kwargs = {
+            'dni': {
+                'validators': [UniqueValidator(
+                    queryset=Empleado.objects.all(),
+                    message='Ya existe un empleado con este DNI.'
+                )]
+            },
+            'email': {
+                'validators': [UniqueValidator(
+                    queryset=Empleado.objects.all(),
+                    message='Ya existe un empleado con este correo electrónico.'
+                )]
+            },
+            'telefono': {
+                'validators': [UniqueValidator(
+                    queryset=Empleado.objects.all(),
+                    message='Ya existe un empleado con este número de teléfono.'
+                )]
+            },
+        }
 
     def get_grupo(self, obj):
         """
