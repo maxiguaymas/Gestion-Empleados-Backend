@@ -2,13 +2,23 @@ from rest_framework import viewsets, status, generics, mixins
 from rest_framework.response import Response
 from .models import Incidente, IncidenteEmpleado, Descargo, Resolucion, Empleado
 from .serializers import IncidenteSerializer, IncidenteEmpleadoSerializer, DescargoSerializer, ResolucionSerializer, GrupoIncidenteDetalleSerializer, GrupoIncidenteListSerializer
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from drf_spectacular.utils import extend_schema
 from empleados.mixins import AdminWriteAccessMixin
 from rest_framework.decorators import action
 from django.db import transaction
 import uuid
 from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+
+class IsAdminGroup(BasePermission):
+    """
+    Permiso personalizado que verifica si el usuario pertenece al grupo 'Administrador'.
+    """
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.groups.filter(name='Administrador').exists() or request.user.is_superuser
+        )
 
 @extend_schema(tags=['Incidentes'])
 class IncidenteViewSet(AdminWriteAccessMixin, viewsets.ModelViewSet):
@@ -254,3 +264,20 @@ class MisIncidentesView(generics.ListAPIView):
             return IncidenteEmpleado.objects.filter(id_empl=empleado)
         except Empleado.DoesNotExist:
             return IncidenteEmpleado.objects.none()
+
+@extend_schema(tags=['Incidentes'])
+class IncidentesPorEmpleadoView(generics.ListAPIView):
+    """
+    Devuelve los incidentes de un empleado específico según su ID.
+    Requiere permisos de administrador.
+    """
+    serializer_class = IncidenteEmpleadoSerializer
+    permission_classes = [IsAuthenticated, IsAdminGroup]
+
+    def get_queryset(self):
+        """
+        Filtra y devuelve los incidentes del empleado especificado en la URL.
+        """
+        empleado_id = self.kwargs['empleado_id']
+        empleado = get_object_or_404(Empleado, id=empleado_id)
+        return IncidenteEmpleado.objects.filter(id_empl=empleado)

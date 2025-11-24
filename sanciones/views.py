@@ -1,5 +1,5 @@
 from rest_framework import viewsets, generics, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, BasePermission
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
@@ -10,9 +10,19 @@ from drf_spectacular.utils import extend_schema
 from notificaciones.models import Notificacion
 from empleados.mixins import AdminWriteAccessMixin
 from empleados.models import Empleado
+from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
+
+class IsAdminGroup(BasePermission):
+    """
+    Permiso personalizado que verifica si el usuario pertenece al grupo 'Administrador'.
+    """
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and (
+            request.user.groups.filter(name='Administrador').exists() or request.user.is_superuser
+        )
 
 @extend_schema(tags=['Sanciones'])
 class SancionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -107,3 +117,20 @@ class MisSancionesView(generics.ListAPIView):
             return Response({"detail": "No se encontraron sanciones para tu usuario."}, status=status.HTTP_200_OK)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+@extend_schema(tags=['Sanciones'])
+class SancionesPorEmpleadoView(generics.ListAPIView):
+    """
+    Devuelve las sanciones de un empleado específico según su ID.
+    Requiere permisos de administrador.
+    """
+    serializer_class = SancionEmpleadoSerializer
+    permission_classes = [IsAuthenticated, IsAdminGroup]
+
+    def get_queryset(self):
+        """
+        Filtra y devuelve las sanciones del empleado especificado en la URL.
+        """
+        empleado_id = self.kwargs['empleado_id']
+        empleado = get_object_or_404(Empleado, id=empleado_id)
+        return SancionEmpleado.objects.filter(id_empl=empleado)

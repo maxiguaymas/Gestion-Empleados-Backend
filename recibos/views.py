@@ -13,6 +13,7 @@ from empleados.mixins import AdminWriteAccessMixin
 from empleados.models import Empleado
 from rest_framework.permissions import BasePermission
 
+from django.shortcuts import get_object_or_404
 logger = logging.getLogger(__name__)
 from rest_framework.generics import ListAPIView
 
@@ -159,3 +160,23 @@ class RecibosPorDNIView(ListAPIView):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+@extend_schema(tags=['Recibos'])
+class RecibosPorEmpleadoIDView(ListAPIView):
+    """
+    Devuelve los recibos de sueldo de un empleado específico según su ID.
+    Accesible solo para Administradores y Consultores.
+    """
+    serializer_class = ReciboSueldosSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrConsultor]
+
+    def get_queryset(self):
+        """
+        Filtra los recibos de sueldo basados en el ID de empleado proporcionado en la URL.
+        """
+        empleado_id = self.kwargs.get('empleado_id')
+        try:
+            empleado = Empleado.objects.get(id=empleado_id)
+            return Recibo_Sueldos.objects.filter(id_empl=empleado).order_by('-fecha_emision')
+        except Empleado.DoesNotExist:
+            return Recibo_Sueldos.objects.none()
