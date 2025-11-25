@@ -1,8 +1,12 @@
 import base64
 import numpy as np
 import cv2
+from datetime import timedelta, datetime
 import face_recognition
 from django.utils import timezone
+from django.core.cache import cache
+import logging
+from .signals import KNOWN_FACES_CACHE_KEY
 
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
@@ -13,9 +17,13 @@ from rest_framework.permissions import IsAuthenticated
 from empleados.models import Empleado
 from empleados.serializer import EmpleadoBasicoSerializer, EmpleadoSerializer
 from .models import Rostro, Asistencia
+from horarios.models import AsignacionHorario, Horarios
 from empleados.mixins import AdminWriteAccessMixin
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from .serializers import AsistenciaSerializer, RostroSerializer
+
+# Obtenemos una instancia del logger para este módulo.
+logger = logging.getLogger(__name__)
 
 @extend_schema(tags=['Asistencias'])
 class EmpleadosSinRostroAPIView(AdminWriteAccessMixin, ListAPIView):
@@ -177,11 +185,31 @@ class ReconocerRostroAPIView(APIView):
         if not image_data:
             return Response({'error': 'No se recibió imagen.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        rostros_conocidos = Rostro.objects.all()
-        encodings_conocidos = [np.array(r.get_encoding()) for r in rostros_conocidos]
-        empleados_ids = [r.id_empl_id for r in rostros_conocidos]
+        # --- Optimización con Caché ---
+        # Intenta obtener los datos de rostros conocidos desde el caché.
+        known_faces_data = cache.get(KNOWN_FACES_CACHE_KEY)
+        if not known_faces_data:
+            # Si no está en caché, lo generamos desde la BD.
+            rostros_conocidos = Rostro.objects.all()
+            encodings_conocidos = [np.array(r.get_encoding()) for r in rostros_conocidos]
+            empleados_ids = [r.id_empl_id for r in rostros_conocidos]
+            known_faces_data = {
+                'encodings': encodings_conocidos,
+                'ids': empleados_ids
+            }
+            # Guardamos los datos en caché para futuras peticiones.
+            cache.set(KNOWN_FACES_CACHE_KEY, known_faces_data, timeout=None) # None = no expira
 
-        format, imgstr = image_data.split(';base64,')
+        encodings_conocidos = known_faces_data['encodings']
+        empleados_ids = known_faces_data['ids']
+        # --- Fin de la optimización ---
+
+        # Manejo robusto de la decodificación de la imagen en base64
+        try:
+            imgstr = image_data.split(';base64,')[1] if ';base64,' in image_data else image_data
+        except IndexError:
+            return Response({'error': 'Formato de imagen base64 inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
         data = base64.b64decode(imgstr)
         nparr = np.frombuffer(data, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -197,25 +225,97 @@ class ReconocerRostroAPIView(APIView):
                 empleado_id = empleados_ids[first_match_index]
                 empleado = Empleado.objects.get(id=empleado_id)
 
-                # Usamos la fecha local para la comprobación, igual que en el resumen.
-                today_local = timezone.localtime(timezone.now()).date()
-                if not Asistencia.objects.filter(id_empl=empleado, fecha_hora__date=today_local).exists():
-                    asistencia = Asistencia.objects.create(id_empl=empleado)
-                    asistencia.minutos_retraso = asistencia.calcular_retraso()
-                    asistencia.save()
-                    serializer = AsistenciaSerializer(asistencia)
-                    return Response({
-                        'status': 'success',
-                        'message': 'Asistencia registrada correctamente.',
-                        'asistencia': serializer.data,
-                        'empleado': f'{empleado.nombre} {empleado.apellido}'
-                    }, status=status.HTTP_201_CREATED)
-                else:
-                    return Response({
-                        'status': 'already_marked',
-                        'message': 'Este empleado ya marcó su asistencia hoy.',
-                        'empleado': f'{empleado.nombre} {empleado.apellido}'
-                    }, status=status.HTTP_200_OK)
+                logger.info(f"Rostro reconocido: {empleado.nombre} {empleado.apellido} (ID: {empleado.id})")
+
+                now = timezone.localtime(timezone.now())
+                today_local = now.date()
+
+                # 1. Obtener los turnos asignados al empleado para el día de la semana actual.
+                # El día de la semana en Python es 0=Lunes, 6=Domingo. En Django es 1=Domingo, 7=Sábado.
+                # Usamos el formato de Python y lo ajustamos.
+                dia_semana_python = today_local.weekday() # Lunes=0, Martes=1, ..., Domingo=6
+                
+                # Mapeamos el día de la semana de Python al nombre del campo en el modelo Horario.
+                dias_map = {
+                    0: 'lunes',
+                    1: 'martes',
+                    2: 'miercoles',
+                    3: 'jueves',
+                    4: 'viernes',
+                    5: 'sabado',
+                    6: 'domingo',
+                }
+                campo_dia_actual = dias_map.get(dia_semana_python)
+
+                # 1. Construimos el filtro dinámico y obtenemos los IDs de los horarios del día.
+                filtro_dia = {campo_dia_actual: True}
+                horarios_del_dia_ids = Horarios.objects.filter(**filtro_dia).values_list('id', flat=True)
+
+                # 2. Filtrar las asignaciones del empleado que corresponden a esos horarios.
+                asignaciones = AsignacionHorario.objects.filter(
+                    id_empl=empleado,
+                    estado=True,
+                    id_horario_id__in=horarios_del_dia_ids
+                ).select_related('id_horario').order_by('id_horario__hora_entrada')
+
+                if not asignaciones.exists():
+                    logger.warning(f"Intento de marcado para {empleado.nombre}, pero no tiene turnos asignados para hoy ({campo_dia_actual}).")
+                    return Response({'status': 'no_schedule_for_today', 'message': 'No tiene turnos asignados para el día de hoy.'}, status=status.HTTP_403_FORBIDDEN)
+
+                # 3. Iterar sobre los turnos del día y encontrar uno válido para marcar.
+                for asignacion in asignaciones:
+                    horario = asignacion.id_horario
+                    logger.info(f"Verificando turno '{horario.nombre}' para {empleado.nombre}.")
+
+                    # 4. Verificar si la hora actual está dentro del rango permitido para este turno.
+                    inicio_permiso = (datetime.combine(today_local, horario.hora_entrada) - timedelta(minutes=30)).time()
+                    fin_turno = horario.hora_salida
+
+                    if inicio_permiso <= now.time() <= fin_turno:
+                        logger.info(f"¡Rango de horario válido para el turno '{horario.nombre}'! Intentando registrar...")
+                        
+                        # 5. OPERACIÓN ATÓMICA: Usamos update_or_create para garantizar la unicidad por turno y día.
+                        # Busca un registro que coincida con el empleado, el turno y la fecha.
+                        # Si no lo encuentra, lo crea con los valores en 'defaults'.
+                        # Si lo encuentra, no hace nada (porque no pasamos valores para actualizar).
+                        asistencia, created = Asistencia.objects.update_or_create(
+                            id_empl=empleado,
+                            id_asignacion_horario=asignacion,
+                            fecha_hora__date=today_local,
+                            defaults={
+                                'id_empl': empleado,
+                                'id_asignacion_horario': asignacion,
+                                'fecha_hora': now # Usamos la hora actual consciente que ya teníamos.
+                            }
+                        )
+
+                        if created:
+                            # Si se creó un nuevo registro, calculamos el retraso y lo guardamos.
+                            asistencia.minutos_retraso = asistencia.calcular_retraso()
+                            asistencia.save()
+                            serializer = AsistenciaSerializer(asistencia)
+                            logger.info(f"Asistencia registrada exitosamente para el turno '{horario.nombre}'.")
+                            return Response({
+                                'status': 'success',
+                                'message': f'Asistencia registrada para el turno {horario.nombre}.',
+                                'asistencia': serializer.data,
+                                'empleado': f'{empleado.nombre} {empleado.apellido}'
+                            }, status=status.HTTP_201_CREATED)
+                        else:
+                            # Si no se creó, significa que ya existía. Saltamos al siguiente turno.
+                            logger.info(f"El empleado ya marcó para el turno '{horario.nombre}'. Saltando al siguiente.")
+                            continue
+
+                # 7. Si el bucle termina, significa que ya marcó todos sus turnos o está fuera de horario para los turnos restantes.
+                logger.warning(f"No se encontró un turno válido para marcar en este momento para {empleado.nombre}.")
+                return Response({
+                    'status': 'no_valid_schedule_at_this_time',
+                    'message': 'Ya ha marcado todos sus turnos para hoy o se encuentra fuera del horario de marcado.',
+                    'empleado': f'{empleado.nombre} {empleado.apellido}'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+                # Salimos del bucle principal una vez que hemos encontrado y procesado a una persona.
+                break
 
         return Response({'status': 'not_found', 'message': 'Rostro no reconocido.'}, status=status.HTTP_404_NOT_FOUND)
 

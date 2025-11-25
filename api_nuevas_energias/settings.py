@@ -87,21 +87,36 @@ TEMPLATES = [
 WSGI_APPLICATION = 'api_nuevas_energias.wsgi.application'
 
 
+
 from urllib.parse import urlparse, parse_qsl
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 DATABASE_URL='postgresql://neondb_owner:npg_5r0DqiAEpGTI@ep-super-sound-addcues3-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
 tmpPostgres = urlparse(DATABASE_URL)
 
+# conexion a bd postresql NEON(en la nube)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': tmpPostgres.path.replace('/', ''),
+#         'USER': tmpPostgres.username,
+#         'PASSWORD': tmpPostgres.password,
+#         'HOST': tmpPostgres.hostname,
+#         'PORT': 5432,
+#         'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+#         'CONN_MAX_AGE': 600,
+#     }
+# }
+
+# CONEXION A BD MYSQL(cada uno debe completar con sus correspondientes datos)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'nuevas-energias-db',
+        'USER': 'root',
+        'PASSWORD': 'sasa',
+        'HOST': 'localhost',
+        'PORT': 3306
     }
 }
 
@@ -130,7 +145,10 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Cambia 'UTC' por la zona horaria de tu país/región.
+# Esto es CRUCIAL para que los cálculos de retraso y las validaciones de horario funcionen correctamente.
+# Ejemplo para Argentina: 'America/Argentina/Buenos_Aires'
+TIME_ZONE = 'America/Argentina/Buenos_Aires'
 
 USE_I18N = True
 

@@ -11,8 +11,6 @@ KNOWN_FACES_CACHE_KEY = 'known_faces_data'
 def invalidar_cache_rostros(sender, instance, **kwargs):
     """
     Esta señal se activa cada vez que un objeto Rostro se guarda (crea/actualiza)
-    o se elimina. Su única función es borrar el caché de rostros conocidos.
-    La próxima vez que la vista de reconocimiento se ejecute, reconstruirá
-    este caché con los datos actualizados de la base de datos.
+    o se elimina. Su función es borrar el caché de rostros conocidos para que se reconstruya.
     """
     cache.delete(KNOWN_FACES_CACHE_KEY)

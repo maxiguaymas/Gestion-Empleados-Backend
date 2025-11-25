@@ -19,5 +19,5 @@ class AsistenciaSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Asistencia
-        fields = ['id', 'id_empl', 'fecha_hora', 'minutos_retraso']
+        fields = ['id', 'id_empl', 'fecha_hora', 'minutos_retraso', 'id_asignacion_horario']
         read_only_fields = ('fecha_hora', 'minutos_retraso')
