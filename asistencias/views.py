@@ -260,7 +260,11 @@ class ReconocerRostroAPIView(APIView):
 
                 if not asignaciones.exists():
                     logger.warning(f"Intento de marcado para {empleado.nombre}, pero no tiene turnos asignados para hoy ({campo_dia_actual}).")
-                    return Response({'status': 'no_schedule_for_today', 'message': 'No tiene turnos asignados para el día de hoy.'}, status=status.HTTP_403_FORBIDDEN)
+                    return Response({
+                        'status': 'no_schedule_for_today',
+                        'message': 'No tiene turnos asignados para el día de hoy.',
+                        'empleado': f'{empleado.nombre} {empleado.apellido}'
+                    }, status=status.HTTP_403_FORBIDDEN)
 
                 # 3. Iterar sobre los turnos del día y encontrar uno válido para marcar.
                 for asignacion in asignaciones:
