@@ -19,10 +19,11 @@ class EmpleadoBasicoSerializer(serializers.ModelSerializer):
     Muestra solo los campos principales, sin relaciones anidadas.
     """
     grupo = serializers.SerializerMethodField()
+    ruta_foto = serializers.SerializerMethodField()
 
     class Meta:
         model = Empleado
-        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado', 'fecha_ingreso', 'grupo']
+        fields = ['id', 'nombre', 'apellido', 'dni', 'email', 'telefono', 'estado', 'fecha_ingreso', 'grupo', 'ruta_foto']
 
     def get_grupo(self, obj):
         """
@@ -30,6 +31,12 @@ class EmpleadoBasicoSerializer(serializers.ModelSerializer):
         """
         if hasattr(obj, 'user') and obj.user.groups.exists():
             return obj.user.groups.first().name
+        return None
+
+    def get_ruta_foto(self, obj):
+        request = self.context.get('request')
+        if request and obj.ruta_foto and hasattr(obj.ruta_foto, 'url'):
+            return request.build_absolute_uri(obj.ruta_foto.url)
         return None
 
 class DocumentoSerializer(serializers.ModelSerializer):
