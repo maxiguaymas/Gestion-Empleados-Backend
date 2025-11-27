@@ -27,10 +27,11 @@ class SancionEmpleadoSerializer(serializers.ModelSerializer):
     empleado_id = serializers.PrimaryKeyRelatedField(queryset=Empleado.objects.all(), source='id_empl', write_only=True)
     sancion_id = serializers.PrimaryKeyRelatedField(queryset=Sancion.objects.all(), source='id_sancion', write_only=True)
     grupo_incidente = serializers.UUIDField(write_only=True, required=False, allow_null=True, help_text="UUID del grupo de incidentes para asociar a la sanción.")
+    incidente_agrupado = serializers.SerializerMethodField(help_text="UUID del grupo de incidente asociado a la sanción, si existe.")
 
     class Meta:
         model = SancionEmpleado
-        fields = ['id', 'id_empl', 'id_sancion', 'incidente_asociado', 'fecha_sancion', 'fecha_inicio', 'fecha_fin', 'motivo', 'responsable', 'empleado_id', 'sancion_id', 'grupo_incidente']
+        fields = ['id', 'id_empl', 'id_sancion', 'incidente_asociado', 'incidente_agrupado', 'fecha_sancion', 'fecha_inicio', 'fecha_fin', 'motivo', 'responsable', 'empleado_id', 'sancion_id', 'grupo_incidente']
         read_only_fields = ('fecha_sancion', 'responsable', 'incidente_asociado')
 
     def create(self, validated_data):
@@ -41,3 +42,11 @@ class SancionEmpleadoSerializer(serializers.ModelSerializer):
         
         sancion_empleado = SancionEmpleado.objects.create(incidente_asociado=incidente_asociado_instance, **validated_data)
         return sancion_empleado
+
+    def get_incidente_agrupado(self, obj):
+        """
+        Devuelve el UUID del grupo de incidente si hay un incidente asociado.
+        """
+        if obj.incidente_asociado:
+            return obj.incidente_asociado.grupo_incidente
+        return None
