@@ -369,11 +369,16 @@ class ResumenAsistenciaDiariaAPIView(AdminWriteAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        # Usamos localtime para obtener la fecha correspondiente a la zona horaria del servidor.
-        today = timezone.localtime(timezone.now()).date()
+        # Obtenemos la hora actual en la zona horaria del servidor para mayor precisión.
+        now = timezone.localtime(timezone.now())
+        
+        # Definimos el rango del día actual (desde las 00:00 hasta las 23:59:59).
+        # Este enfoque es más robusto con las zonas horarias que usar `__date`.
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         
         # Contar asistencias únicas de empleados para hoy
-        asistencias_hoy = Asistencia.objects.filter(fecha_hora__date=today).values('id_empl').distinct().count()
+        asistencias_hoy = Asistencia.objects.filter(fecha_hora__gte=start_of_day, fecha_hora__lte=end_of_day).values('id_empl').distinct().count()
         
         # Contar total de empleados activos
         total_empleados_activos = Empleado.objects.filter(estado='Activo').count()
