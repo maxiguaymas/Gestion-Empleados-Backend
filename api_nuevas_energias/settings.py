@@ -112,9 +112,9 @@ tmpPostgres = urlparse(DATABASE_URL)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'nuevas-energias-db',
-        'USER': 'root',
-        'PASSWORD': 'sasa',
+        'NAME': 'gestion_empleados_db',
+        'USER': 'Javier',
+        'PASSWORD': 'Admin12345',
         'HOST': 'localhost',
         'PORT': 3306
     }
