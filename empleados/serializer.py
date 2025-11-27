@@ -236,6 +236,11 @@ class EmpleadoSerializer(serializers.ModelSerializer):
 
                 # 3. Crear el Empleado, asociando el usuario recién creado.
                 empleado = Empleado.objects.create(user=user, **validated_data)
+                
+                # Manejar la foto de perfil si se envía un archivo
+                if request and 'ruta_foto' in request.FILES:
+                    empleado.ruta_foto = request.FILES['ruta_foto']
+                    empleado.save(update_fields=['ruta_foto'])
 
                 # Crear la notificación de bienvenida para el nuevo usuario.
                 Notificacion.objects.create(
